@@ -78,9 +78,28 @@ def clean_data(input_file, output_file, column='Text'):
     print(f"Cleaning data in column: {column}")
     df['processed_text'], df['emoji_toxic'] = zip(*df[column].apply(preprocess_text))
 
+    # Create a new dataframe with only the necessary columns
+    focused_df = df[['processed_text', 'IsToxic']].copy()
+
+    # Save the focused dataframe
     output_path = os.path.join(os.path.dirname(data_path), output_file)
-    df.to_csv(output_path, index=False)
+    focused_df.to_csv(output_path, index=False)
     print(f"Preprocessed data saved to {output_path}")
 
+    # Save the full dataframe with all columns for potential future use
+    full_output_path = os.path.join(os.path.dirname(data_path), 'preprocessed_data.csv')
+    df.to_csv(full_output_path, index=False)
+    print(f"Full preprocessed data saved to {full_output_path}")
+
+def process_new_comment(text):
+    """
+    Process new comments from YouTube API.
+    """
+    processed_text, is_emoji_toxic = preprocess_text(text)
+    return {
+        "processed_text": processed_text,
+        "is_emoji_toxic": is_emoji_toxic
+    }
+
 if __name__ == "__main__":
-    clean_data('youtube.csv', 'preprocessed_data.csv')
+    clean_data('youtube.csv', 'model_df.csv')
