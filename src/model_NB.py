@@ -5,22 +5,13 @@ from sklearn.model_selection import train_test_split, cross_val_score, Stratifie
 from sklearn.feature_selection import SelectKBest, chi2
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.naive_bayes import ComplementNB
-from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, f1_score, balanced_accuracy_score
-from sklearn.utils.class_weight import compute_class_weight
-from imblearn.over_sampling import SMOTE
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, roc_auc_score, f1_score, balanced_accuracy_score
+from sklearn.decomposition import TruncatedSVD
 import matplotlib.pyplot as plt
 import seaborn as sns
 from joblib import dump
 from wordcloud import WordCloud
 import optuna
-# Import nltk and download required resources
-import nltk
-from nltk.corpus import wordnet
-import random
-nltk.download('wordnet')
-nltk.download('averaged_perceptron_tagger')
-nltk.download('averaged_perceptron_tagger_eng')
-nltk.download('punkt_tab')
 
 def load_data(file_name):
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -84,48 +75,6 @@ def create_wordcloud(df):
     plt.savefig(file_path)
     plt.close()
 
-def get_wordnet_pos(treebank_tag):
-    if treebank_tag.startswith('J'):
-        return wordnet.ADJ
-    elif treebank_tag.startswith('V'):
-        return wordnet.VERB
-    elif treebank_tag.startswith('N'):
-        return wordnet.NOUN
-    elif treebank_tag.startswith('R'):
-        return wordnet.ADV
-    else:
-        return None
-
-def synonym_replacement(text, n=1):
-    words = nltk.word_tokenize(text)
-    pos_tags = nltk.pos_tag(words)
-    new_words = words.copy()
-    
-    replacement_count = 0
-    for i, (word, pos) in enumerate(pos_tags):
-        if replacement_count >= n:
-            break
-        
-        wordnet_pos = get_wordnet_pos(pos)
-        if not wordnet_pos:
-            continue
-        
-        synsets = wordnet.synsets(word, pos=wordnet_pos)
-        if not synsets:
-            continue
-        
-        synonyms = []
-        for syn in synsets:
-            for lemma in syn.lemmas():
-                if lemma.name().lower() != word.lower():
-                    synonyms.append(lemma.name())
-        
-        if synonyms:
-            new_words[i] = random.choice(synonyms)
-            replacement_count += 1
-    
-    return ' '.join(new_words)
-
 def train_naive_bayes():
     # Load preprocessed data
     df = load_data('model_df.csv')
@@ -136,76 +85,62 @@ def train_naive_bayes():
     # Create a word cloud for toxic comments before vectorization
     create_wordcloud(df)
     
-    # Data augmentation with WordNet-based synonym replacement
-    augmented_texts = []
-    augmented_labels = []
-    for _, row in df.iterrows():
-        augmented_texts.append(row['processed_text'])
-        augmented_labels.append(row['IsToxic'])
-        if row['IsToxic'] == 1:  # Augment only toxic comments
-            augmented_text = synonym_replacement(row['processed_text'], n=2)
-            augmented_texts.append(augmented_text)
-            augmented_labels.append(1)
+    # Reduce the number of features
+    vectorizer = TfidfVectorizer(max_features=500, min_df=5, max_df=0.7)
+    X_reduced = vectorizer.fit_transform(df['processed_text'])
+    y = df['IsToxic']
+
+    # Split the data into training and testing sets
+    X_train, X_test, y_train, y_test = train_test_split(X_reduced, y, test_size=0.2, random_state=42)
     
-    # Create a new DataFrame with original and augmented data
-    df_augmented = pd.DataFrame({'processed_text': augmented_texts, 'IsToxic': augmented_labels})
-
-    # Confirm 'IsToxic' is integer type
-    df_augmented['IsToxic'] = df_augmented['IsToxic'].astype(int)
-
-    # Vectorization using TF-IDF with reduced max_features, min_df, and bigrams
-    vectorizer = TfidfVectorizer(max_features=2000, min_df=5, ngram_range=(1, 2))
-    X = vectorizer.fit_transform(df_augmented['processed_text'])
-    y = df_augmented['IsToxic'].astype(int)
-
-    # Split the data 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+    # Apply TruncatedSVD for dimensionality reduction
+    svd = TruncatedSVD(n_components=100, random_state=42)
+    X_train_reduced = svd.fit_transform(X_train)
+    X_test_reduced = svd.transform(X_test)
     
-    # Apply SMOTE on training data
-    smote = SMOTE(random_state=42)
-    X_train_smote, y_train_smote = smote.fit_resample(X_train, y_train)
+    # Convert to absolute values
+    X_train_reduced = abs(X_train_reduced)
+    X_test_reduced = abs(X_test_reduced)
 
-    # Calculate class weights for imbalance
-    class_weight_dict = compute_class_weight('balanced', classes=np.unique(y_train_smote), y=y_train_smote)
-    class_prior = [class_weight_dict[0] / sum(class_weight_dict), class_weight_dict[1] / sum(class_weight_dict)]
-
-    # Feature Selection with Chi-Square Test
-    selector = SelectKBest(chi2, k=1000)
-    X_train_selected = selector.fit_transform(X_train_smote, y_train_smote)
-    X_test_selected = selector.transform(X_test)
-
-    # Define the Optuna optimization function
+    # Optuna hyperparameter optimization
     def objective(trial):
-        alpha = trial.suggest_loguniform('alpha', 0.01, 5.0)
-        fit_prior = trial.suggest_categorical('fit_prior', [True, False])
-        model = ComplementNB(alpha=alpha, fit_prior=fit_prior)
+        alpha = trial.suggest_float('alpha', 0.5, 2.0)
+        norm = trial.suggest_categorical('norm', [True, False])
+        model = ComplementNB(alpha=alpha, norm=norm)
         
-        # Stratified K-Fold Cross-Validation
         skf = StratifiedKFold(n_splits=5)
-        scores = cross_val_score(model, X_train_selected, y_train_smote, cv=skf, scoring='roc_auc')
+        scores = cross_val_score(model, X_train_reduced, y_train, cv=skf, scoring='roc_auc')
         return scores.mean()
     
     # Run Optuna optimization
     study = optuna.create_study(direction='maximize')
     study.optimize(objective, n_trials=30)
     best_alpha = study.best_params['alpha']
-    best_fit_prior = study.best_params['fit_prior']
+    best_norm = study.best_params['norm']
     print(f"Best alpha found by Optuna: {best_alpha}")
-    print(f"Best fit_prior found by Optuna: {best_fit_prior}")
+    print(f"Best norm found by Optuna: {best_norm}")
     
-    # Train final model with best alpha from Optuna
-    best_model = ComplementNB(alpha=best_alpha, fit_prior=best_fit_prior)
-    best_model.fit(X_train_selected, y_train_smote)
+    # Train final model with the best parameters
+    best_model = ComplementNB(alpha=best_alpha, norm=best_norm)
+    best_model.fit(X_train_reduced, y_train)
     
     # Evaluate the model
-    best_model = train_evaluate_model(best_model, X_train_selected, X_test_selected, y_train_smote, y_test, "Complement_Naive_Bayes")
+    best_model = train_evaluate_model(best_model, X_train_reduced, X_test_reduced, y_train, y_test, "Complement_Naive_Bayes_SVD")
     
-    # Feature Importance Analysis (for Naive Bayes, we'll use the log probabilities)
+    # Perform cross-validation
+    cv_scores = cross_val_score(best_model, X_reduced, y, cv=5)
+    print(f"Cross-Validation Accuracy Scores: {cv_scores}")
+    print(f"Average Cross-Validation Accuracy: {cv_scores.mean() * 100:.2f}%")
+    
+    # Feature Importance Analysis
     feature_importance = best_model.feature_log_prob_[1] - best_model.feature_log_prob_[0]
-    selected_feature_names = selector.get_feature_names_out(vectorizer.get_feature_names_out())
-    importance_df = pd.DataFrame({'feature': selected_feature_names, 'importance': feature_importance})
+    importance_df = pd.DataFrame({
+        'feature': [f'component_{i+1}' for i in range(svd.n_components)],
+        'importance': feature_importance
+    })
     importance_df = importance_df.sort_values('importance', ascending=False).head(20)
-
+    
+    # Plot top 20 important features
     plt.figure(figsize=(12, 8))
     sns.barplot(x='importance', y='feature', data=importance_df)
     plt.title('Top 20 Most Important Features')
@@ -214,10 +149,10 @@ def train_naive_bayes():
     file_path = os.path.join(current_dir, '..', 'src', 'metrics', 'feature_importance.png')
     plt.savefig(file_path)
     plt.close()
-    
+
     # Save model and vectorizer
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    model_path = os.path.join(current_dir, 'models')
+    model_path = os.path.join(current_dir, 'prueba')
     dump(best_model, os.path.join(model_path, 'complement_naive_bayes_model.joblib'))
     dump(vectorizer, os.path.join(model_path, 'tfidf_vectorizer.joblib'))
     
