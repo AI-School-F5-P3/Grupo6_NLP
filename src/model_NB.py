@@ -134,8 +134,16 @@ def train_naive_bayes():
     
     # Feature Importance Analysis
     feature_importance = best_model.feature_log_prob_[1] - best_model.feature_log_prob_[0]
+    feature_names = vectorizer.get_feature_names_out()
+    
+    # Ensure feature names and feature importance have the same length
+    if len(feature_importance) != len(feature_names):
+        min_length = min(len(feature_importance), len(feature_names))
+        feature_importance = feature_importance[:min_length]
+        feature_names = feature_names[:min_length]
+    
     importance_df = pd.DataFrame({
-        'feature': [f'component_{i+1}' for i in range(svd.n_components)],
+        'feature': feature_names,
         'importance': feature_importance
     })
     importance_df = importance_df.sort_values('importance', ascending=False).head(20)
@@ -143,7 +151,7 @@ def train_naive_bayes():
     # Plot top 20 important features
     plt.figure(figsize=(12, 8))
     sns.barplot(x='importance', y='feature', data=importance_df)
-    plt.title('Top 20 Most Important Features')
+    plt.title('Top 20 Most Important Words')
     plt.tight_layout()
     current_dir = os.path.dirname(os.path.abspath(__file__))
     file_path = os.path.join(current_dir, '..', 'src', 'metrics', 'feature_importance.png')
