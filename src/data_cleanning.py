@@ -103,3 +103,4 @@ def process_new_comment(text):
 
 if __name__ == "__main__":
     clean_data('youtube.csv', 'model_df.csv')
+    print("Data preprocessing completed.")
