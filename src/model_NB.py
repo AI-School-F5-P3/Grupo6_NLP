@@ -152,7 +152,7 @@ def train_naive_bayes():
 
     # Save model and vectorizer
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    model_path = os.path.join(current_dir, 'prueba')
+    model_path = os.path.join(current_dir, 'models')
     dump(best_model, os.path.join(model_path, 'complement_naive_bayes_model.joblib'))
     dump(vectorizer, os.path.join(model_path, 'tfidf_vectorizer.joblib'))
     
