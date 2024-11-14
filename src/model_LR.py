@@ -70,7 +70,7 @@ def create_wordcloud(df):
     plt.axis('off')
     plt.title('Most Common Words in Toxic Comments')
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    file_path = os.path.join(current_dir, '..', 'src', 'metrics', 'toxic_wordcloud.png')
+    file_path = os.path.join(current_dir, '..', 'src', 'metrics')
     plt.savefig(file_path)
     plt.close()
 
@@ -80,9 +80,6 @@ def train_logistic_regresion():
 
     # Ensure 'IsToxic' is binary 
     df['IsToxic'] = df['IsToxic'].astype(int)
-    
-    # Create a word cloud for toxic comments before vectorization
-    create_wordcloud(df)
     
     # Create pipeline with PCA for reducing overfitting
     pipeline = Pipeline([
