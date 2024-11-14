@@ -75,6 +75,23 @@ def create_wordcloud(df):
     plt.savefig(file_path)
     plt.close()
 
+def predict_toxicity(text, model, vectorizer):
+    # Vectorize the text
+    text_vectorized = vectorizer.transform([text])
+    
+    # Apply TruncatedSVD for dimensionality reduction
+    svd = TruncatedSVD(n_components=100, random_state=42)
+    text_svd = svd.fit_transform(text_vectorized)
+    
+    # Convert to absolute values
+    text_svd = abs(text_svd)
+
+    # Make prediction
+    prediction = model.predict(text_svd)
+    probability = model.predict_proba(text_svd)[0][1]  # Probability of being toxic
+    
+    return prediction[0], probability
+
 def train_naive_bayes():
     # Load preprocessed data
     df = load_data('model_df.csv')
