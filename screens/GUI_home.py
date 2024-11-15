@@ -6,13 +6,15 @@ from src.model_NB import predict_toxicity
 
 def load_model_and_vectorizer():
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    model_path = os.path.join(current_dir, '..', 'src','models', 'naive_bayes_model.joblib')
-    vectorizer_path = os.path.join(current_dir, '..','src', 'models', 'tfidf_vectorizer.joblib')
+    model_path = os.path.join(current_dir, '..', 'src', 'models', 'naive_bayes_model.joblib')
+    vectorizer_path = os.path.join(current_dir, '..', 'src', 'models', 'tfidf_vectorizer.joblib')
+    svd_path = os.path.join(current_dir, '..', 'src', 'models', 'svd_model.joblib')
 
     model = joblib.load(model_path)
     vectorizer = joblib.load(vectorizer_path)
+    svd = joblib.load(svd_path)
 
-    return model, vectorizer
+    return model, vectorizer, svd
 
 def home_screen():
     st.title("YouTube Comment Toxicity Detector 🕵️‍♀️")
@@ -25,7 +27,7 @@ def home_screen():
     ---
     """)
 
-    model, vectorizer = load_model_and_vectorizer()
+    model, vectorizer, svd = load_model_and_vectorizer()
 
     user_input = st.text_area(
         "Enter a YouTube comment to analyze:", 
@@ -36,7 +38,7 @@ def home_screen():
     if st.button("Analyze Toxicity", type="primary"):
         if user_input:
             processed_text, _ = preprocess_text(user_input)
-            prediction, probability = predict_toxicity(processed_text, model, vectorizer)
+            prediction, probability = predict_toxicity(processed_text, model, vectorizer, svd)
             
             if prediction == 1:
                 st.error(f"🚨 Toxic Comment Detected!")
