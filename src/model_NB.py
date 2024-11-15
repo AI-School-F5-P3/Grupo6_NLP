@@ -75,17 +75,13 @@ def create_wordcloud(df):
     plt.savefig(file_path)
     plt.close()
 
-def predict_toxicity(text, model, vectorizer):
+def predict_toxicity(text, model, vectorizer, svd):
     # Vectorize the text
     text_vectorized = vectorizer.transform([text])
     
     # Apply TruncatedSVD for dimensionality reduction
-    svd = TruncatedSVD(n_components=100, random_state=42)
-    text_svd = svd.fit_transform(text_vectorized)
+    text_svd = svd.transform(text_vectorized)
     
-    # Convert to absolute values
-    text_svd = abs(text_svd)
-
     # Make prediction
     prediction = model.predict(text_svd)
     probability = model.predict_proba(text_svd)[0][1]  # Probability of being toxic
@@ -175,14 +171,15 @@ def train_naive_bayes():
     plt.savefig(file_path)
     plt.close()
 
-    # Save model and vectorizer
+    # Save model, vectorizer, and SVD
     current_dir = os.path.dirname(os.path.abspath(__file__))
     model_path = os.path.join(current_dir, 'models')
     dump(best_model, os.path.join(model_path, 'naive_bayes_model.joblib'))
     dump(vectorizer, os.path.join(model_path, 'tfidf_vectorizer.joblib'))
-    
-    print("Complement Naive Bayes model training completed and saved.")
-    return best_model
+    dump(svd, os.path.join(model_path, 'svd_model.joblib'))
+
+    print("Complement Naive Bayes model, vectorizer, and SVD model training completed and saved.")
+    return best_model, vectorizer, svd
 
 if __name__ == "__main__":
     train_naive_bayes()
