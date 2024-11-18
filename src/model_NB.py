@@ -75,6 +75,19 @@ def create_wordcloud(df):
     plt.savefig(file_path)
     plt.close()
 
+def predict_toxicity(text, model, vectorizer, svd):
+    # Vectorize the text
+    text_vectorized = vectorizer.transform([text])
+    
+    # Apply TruncatedSVD for dimensionality reduction
+    text_svd = svd.transform(text_vectorized)
+    
+    # Make prediction
+    prediction = model.predict(text_svd)
+    probability = model.predict_proba(text_svd)[0][1]  # Probability of being toxic
+    
+    return prediction[0], probability
+
 def train_naive_bayes():
     # Load preprocessed data
     df = load_data('model_df.csv')
@@ -125,7 +138,7 @@ def train_naive_bayes():
     best_model.fit(X_train_reduced, y_train)
     
     # Evaluate the model
-    best_model = train_evaluate_model(best_model, X_train_reduced, X_test_reduced, y_train, y_test, "Complement_Naive_Bayes_SVD")
+    best_model = train_evaluate_model(best_model, X_train_reduced, X_test_reduced, y_train, y_test, "Naive_Bayes_SVD")
     
     # Perform cross-validation
     cv_scores = cross_val_score(best_model, X_reduced, y, cv=5)
@@ -158,14 +171,15 @@ def train_naive_bayes():
     plt.savefig(file_path)
     plt.close()
 
-    # Save model and vectorizer
+    # Save model, vectorizer, and SVD
     current_dir = os.path.dirname(os.path.abspath(__file__))
     model_path = os.path.join(current_dir, 'models')
-    dump(best_model, os.path.join(model_path, 'complement_naive_bayes_model.joblib'))
+    dump(best_model, os.path.join(model_path, 'naive_bayes_model.joblib'))
     dump(vectorizer, os.path.join(model_path, 'tfidf_vectorizer.joblib'))
-    
-    print("Complement Naive Bayes model training completed and saved.")
-    return best_model
+    dump(svd, os.path.join(model_path, 'svd_model.joblib'))
+
+    print("Complement Naive Bayes model, vectorizer, and SVD model training completed and saved.")
+    return best_model, vectorizer, svd
 
 if __name__ == "__main__":
     train_naive_bayes()
