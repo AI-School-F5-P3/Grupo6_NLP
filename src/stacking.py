@@ -16,13 +16,34 @@ from joblib import dump, load
 import os
 import torch
 from transformers import BertTokenizer, BertModel
+import cloudpickle
 
 class BertVectorizer(BaseEstimator, TransformerMixin):
     def __init__(self):
+        self.tokenizer = None
+        self.model = None
+        self.device = None
+        self._initialize()
+    
+    def _initialize(self):
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
         self.model = BertModel.from_pretrained('bert-base-uncased')
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model = self.model.to(self.device)
+    
+    def __getstate__(self):
+        # This method is called when pickling
+        state = self.__dict__.copy()
+        # Remove unpicklable entries
+        state['tokenizer'] = None
+        state['model'] = None
+        state['device'] = None
+        return state
+
+    def __setstate__(self, state):
+        # This method is called when unpickling
+        self.__dict__.update(state)
+        self._initialize()
     
     def fit(self, X, y=None):
         return self
@@ -40,7 +61,6 @@ class BertVectorizer(BaseEstimator, TransformerMixin):
                 embeddings.append(embedding[0])
         
         return np.array(embeddings)
-
 def load_data(file_name):
     current_dir = os.path.dirname(os.path.abspath(__file__))
     data_path = os.path.join(current_dir, '..', 'data', file_name)
@@ -203,17 +223,50 @@ def train_ensemble():
     
     print("\nSaving models and transformers...")
     try:
-        dump(best_model, os.path.join(model_path, f'ensemble_{best_name}_bert_model.joblib'))
-        dump(bert_vectorizer, os.path.join(model_path, 'ensemble_bert_vectorizer.joblib'))
-        dump(minmax_scaler, os.path.join(model_path, 'ensemble_bert_minmax_scaler.joblib'))
-        dump(nmf, os.path.join(model_path, 'ensemble_bert_nmf.joblib'))
-        dump(scaler, os.path.join(model_path, 'ensemble_bert_scaler.joblib'))
+        # Replace joblib.dump with cloudpickle.dump
+        with open(os.path.join(model_path, f'ensemble_{best_name}_bert_model.pkl'), 'wb') as f:
+            cloudpickle.dump(best_model, f)
+        
+        with open(os.path.join(model_path, 'ensemble_bert_vectorizer.pkl'), 'wb') as f:
+            cloudpickle.dump(bert_vectorizer, f)
+        
+        with open(os.path.join(model_path, 'ensemble_bert_minmax_scaler.pkl'), 'wb') as f:
+            cloudpickle.dump(minmax_scaler, f)
+        
+        with open(os.path.join(model_path, 'ensemble_bert_nmf.pkl'), 'wb') as f:
+            cloudpickle.dump(nmf, f)
+        
+        with open(os.path.join(model_path, 'ensemble_bert_scaler.pkl'), 'wb') as f:
+            cloudpickle.dump(scaler, f)
+        
         print(f"\nBest BERT-based model ({best_name}) and all transformers saved successfully.")
     except Exception as e:
         print(f"\nError saving models: {str(e)}")
         print("Training completed but models could not be saved.")
     
     return best_model
+
+def predict_toxicity_stacking(text, model, bert_vectorizer, minmax_scaler, nmf, scaler):
+    # Get BERT embedding
+    bert_embedding = bert_vectorizer.transform([text])
+    
+    # Scale to non-negative values
+    non_negative_embedding = minmax_scaler.transform(bert_embedding)
+    
+    # Ensure all values are non-negative
+    non_negative_embedding = np.maximum(non_negative_embedding, 0)
+    
+    # Apply NMF
+    nmf_features = nmf.transform(non_negative_embedding)
+    
+    # Scale features
+    scaled_features = scaler.transform(nmf_features)
+    
+    # Predict
+    prediction = model.predict(scaled_features)
+    probability = model.predict_proba(scaled_features)[0][1]
+    
+    return prediction[0], probability
 
 if __name__ == "__main__":
     train_ensemble()

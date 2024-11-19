@@ -6,19 +6,12 @@ def model_metrics_screen():
 
     # Load confusion matrix
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    confusion_matrix_path = os.path.join(current_dir, '..', 'src', 'metrics', 'Naive_Bayes_SVD_confusion_matrix.png')
+    confusion_matrix_path = os.path.join(current_dir, '..', 'src', 'metrics', 'Stacking_Ensemble_BERT_bert_confusion_matrix.png')
     
     if os.path.exists(confusion_matrix_path):
         st.image(confusion_matrix_path, caption="Confusion Matrix")
     else:
         st.warning("Confusion matrix image not found.")
-
-    # Load and display feature importance
-    feature_importance_path = os.path.join(current_dir, '..', 'src', 'metrics', 'feature_importance.png')
-    if os.path.exists(feature_importance_path):
-        st.image(feature_importance_path, caption="Feature Importance")
-    else:
-        st.warning("Feature importance image not found.")
 
     # Display wordcloud
     wordcloud_path = os.path.join(current_dir, '..', 'src', 'metrics', 'toxic_wordcloud.png')
