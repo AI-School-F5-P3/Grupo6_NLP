@@ -215,5 +215,24 @@ def train_ensemble():
     
     return best_model
 
+def predict_toxicity_stacking(text, model, bert_vectorizer, minmax_scaler, nmf, scaler):
+    # Get BERT embedding
+    bert_embedding = bert_vectorizer.transform([text])
+    
+    # Scale to non-negative values
+    non_negative_embedding = minmax_scaler.transform(bert_embedding)
+    
+    # Apply NMF
+    nmf_features = nmf.transform(non_negative_embedding)
+    
+    # Scale features
+    scaled_features = scaler.transform(nmf_features)
+    
+    # Predict
+    prediction = model.predict(scaled_features)
+    probability = model.predict_proba(scaled_features)[0][1]
+    
+    return prediction[0], probability
+
 if __name__ == "__main__":
     train_ensemble()

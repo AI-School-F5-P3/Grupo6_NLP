@@ -3,24 +3,27 @@ import pandas as pd
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from src.data_cleanning import preprocess_text
-from src.model_NB import predict_toxicity
+from src.stacking import predict_toxicity_stacking
 import joblib
-import os
 import os
 from dotenv import load_dotenv
 
-# Load the trained model and vectorizer
-def load_model_and_vectorizer():
+# Load the trained model and transformers
+def load_stacking_model_and_transformers():
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    model_path = os.path.join(current_dir, '..', 'src', 'models', 'naive_bayes_model.joblib')
-    vectorizer_path = os.path.join(current_dir, '..', 'src', 'models', 'tfidf_vectorizer.joblib')
-    svd_path = os.path.join(current_dir, '..', 'src', 'models', 'svd_model.joblib')
+    model_path = os.path.join(current_dir, '..', 'src', 'models', 'ensemble_stacking_bert_model.joblib')
+    bert_vectorizer_path = os.path.join(current_dir, '..', 'src', 'models', 'ensemble_bert_vectorizer.joblib')
+    minmax_scaler_path = os.path.join(current_dir, '..', 'src', 'models', 'ensemble_bert_minmax_scaler.joblib')
+    nmf_path = os.path.join(current_dir, '..', 'src', 'models', 'ensemble_bert_nmf.joblib')
+    scaler_path = os.path.join(current_dir, '..', 'src', 'models', 'ensemble_bert_scaler.joblib')
 
     model = joblib.load(model_path)
-    vectorizer = joblib.load(vectorizer_path)
-    svd = joblib.load(svd_path)
+    bert_vectorizer = joblib.load(bert_vectorizer_path)
+    minmax_scaler = joblib.load(minmax_scaler_path)
+    nmf = joblib.load(nmf_path)
+    scaler = joblib.load(scaler_path)
 
-    return model, vectorizer, svd
+    return model, bert_vectorizer, minmax_scaler, nmf, scaler
 
 # Load environment variables
 load_dotenv()
@@ -48,11 +51,11 @@ def get_video_comments(video_id):
         st.error(f"An error occurred: {e}")
     return comments
 
-def analyze_comments(comments, model, vectorizer, svd):
+def analyze_comments(comments, model, bert_vectorizer, minmax_scaler, nmf, scaler):
     results = []
     for comment in comments:
         processed_text, _ = preprocess_text(comment)
-        prediction, probability = predict_toxicity(processed_text, model, vectorizer, svd)
+        prediction, probability = predict_toxicity_stacking(processed_text, model, bert_vectorizer, minmax_scaler, nmf, scaler)
         results.append({
             "comment": comment,
             "processed_text": processed_text,
@@ -73,8 +76,8 @@ def youtube_analyzer_screen():
                 comments = get_video_comments(video_id)
                 
                 if comments:
-                    model, vectorizer, svd = load_model_and_vectorizer()
-                    results = analyze_comments(comments, model, vectorizer, svd)
+                    model, bert_vectorizer, minmax_scaler, nmf, scaler = load_stacking_model_and_transformers()
+                    results = analyze_comments(comments, model, bert_vectorizer, minmax_scaler, nmf, scaler)
                     df = pd.DataFrame(results)
                     
                     st.subheader("Analysis Results")
