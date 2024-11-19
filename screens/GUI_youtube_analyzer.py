@@ -3,25 +3,37 @@ import pandas as pd
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from src.data_cleanning import preprocess_text
-from src.stacking import predict_toxicity_stacking
+from src.stacking import predict_toxicity_stacking, BertVectorizer
 import joblib
 import os
 from dotenv import load_dotenv
+import cloudpickle
 
-# Load the trained model and transformers
 def load_stacking_model_and_transformers():
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    model_path = os.path.join(current_dir, '..', 'src', 'models', 'ensemble_stacking_bert_model.joblib')
-    bert_vectorizer_path = os.path.join(current_dir, '..', 'src', 'models', 'ensemble_bert_vectorizer.joblib')
-    minmax_scaler_path = os.path.join(current_dir, '..', 'src', 'models', 'ensemble_bert_minmax_scaler.joblib')
-    nmf_path = os.path.join(current_dir, '..', 'src', 'models', 'ensemble_bert_nmf.joblib')
-    scaler_path = os.path.join(current_dir, '..', 'src', 'models', 'ensemble_bert_scaler.joblib')
+    
+    # Change file extensions to .pkl
+    model_path = os.path.join(current_dir, '..', 'src', 'models', f'ensemble_stacking_bert_model.pkl')
+    bert_vectorizer_path = os.path.join(current_dir, '..', 'src', 'models', 'ensemble_bert_vectorizer.pkl')
+    minmax_scaler_path = os.path.join(current_dir, '..', 'src', 'models', 'ensemble_bert_minmax_scaler.pkl')
+    nmf_path = os.path.join(current_dir, '..', 'src', 'models', 'ensemble_bert_nmf.pkl')
+    scaler_path = os.path.join(current_dir, '..', 'src', 'models', 'ensemble_bert_scaler.pkl')
 
-    model = joblib.load(model_path)
-    bert_vectorizer = joblib.load(bert_vectorizer_path)
-    minmax_scaler = joblib.load(minmax_scaler_path)
-    nmf = joblib.load(nmf_path)
-    scaler = joblib.load(scaler_path)
+    # Use cloudpickle.load instead of joblib.load
+    with open(model_path, 'rb') as f:
+        model = cloudpickle.load(f)
+    
+    with open(bert_vectorizer_path, 'rb') as f:
+        bert_vectorizer = cloudpickle.load(f)
+    
+    with open(minmax_scaler_path, 'rb') as f:
+        minmax_scaler = cloudpickle.load(f)
+    
+    with open(nmf_path, 'rb') as f:
+        nmf = cloudpickle.load(f)
+    
+    with open(scaler_path, 'rb') as f:
+        scaler = cloudpickle.load(f)
 
     return model, bert_vectorizer, minmax_scaler, nmf, scaler
 
