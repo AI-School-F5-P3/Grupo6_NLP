@@ -44,24 +44,26 @@ load_dotenv()
 API_KEY = os.getenv("YOUTUBE_API_KEY")
 youtube = build('youtube', 'v3', developerKey=API_KEY)
 
-def get_video_comments(video_id):
+def get_video_comments(video_id, max_comments=50):
     comments = []
     try:
         request = youtube.commentThreads().list(
             part="snippet",
             videoId=video_id,
             textFormat="plainText",
-            maxResults=100
+            maxResults=min(100, max_comments)  
         )
-        while request:
+        while request and len(comments) < max_comments:
             response = request.execute()
             for item in response["items"]:
+                if len(comments) >= max_comments:
+                    break
                 comment = item["snippet"]["topLevelComment"]["snippet"]["textDisplay"]
                 comments.append(comment)
             request = youtube.commentThreads().list_next(request, response)
     except HttpError as e:
         st.error(f"An error occurred: {e}")
-    return comments
+    return comments[:max_comments] 
 
 def analyze_comments(comments, model, bert_vectorizer, minmax_scaler, nmf, scaler):
     results = []
