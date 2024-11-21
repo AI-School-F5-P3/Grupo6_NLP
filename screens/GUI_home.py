@@ -2,19 +2,36 @@ import streamlit as st
 import joblib
 import os
 from src.data_cleanning import preprocess_text
-from src.model_NB import predict_toxicity
+from src.stacking import predict_toxicity_stacking, BertVectorizer
+import cloudpickle
 
-def load_model_and_vectorizer():
+def load_stacking_model_and_transformers():
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    model_path = os.path.join(current_dir, '..', 'src', 'models', 'naive_bayes_model.joblib')
-    vectorizer_path = os.path.join(current_dir, '..', 'src', 'models', 'tfidf_vectorizer.joblib')
-    svd_path = os.path.join(current_dir, '..', 'src', 'models', 'svd_model.joblib')
+    
+    # Change file extensions to .pkl
+    model_path = os.path.join(current_dir, '..', 'src', 'models', f'ensemble_stacking_bert_model.pkl')
+    bert_vectorizer_path = os.path.join(current_dir, '..', 'src', 'models', 'ensemble_bert_vectorizer.pkl')
+    minmax_scaler_path = os.path.join(current_dir, '..', 'src', 'models', 'ensemble_bert_minmax_scaler.pkl')
+    nmf_path = os.path.join(current_dir, '..', 'src', 'models', 'ensemble_bert_nmf.pkl')
+    scaler_path = os.path.join(current_dir, '..', 'src', 'models', 'ensemble_bert_scaler.pkl')
 
-    model = joblib.load(model_path)
-    vectorizer = joblib.load(vectorizer_path)
-    svd = joblib.load(svd_path)
+    # Use cloudpickle.load instead of joblib.load
+    with open(model_path, 'rb') as f:
+        model = cloudpickle.load(f)
+    
+    with open(bert_vectorizer_path, 'rb') as f:
+        bert_vectorizer = cloudpickle.load(f)
+    
+    with open(minmax_scaler_path, 'rb') as f:
+        minmax_scaler = cloudpickle.load(f)
+    
+    with open(nmf_path, 'rb') as f:
+        nmf = cloudpickle.load(f)
+    
+    with open(scaler_path, 'rb') as f:
+        scaler = cloudpickle.load(f)
 
-    return model, vectorizer, svd
+    return model, bert_vectorizer, minmax_scaler, nmf, scaler
 
 def home_screen():
     st.title("YouTube Comment Toxicity Detector 🕵️‍♀️")
@@ -27,7 +44,7 @@ def home_screen():
     ---
     """)
 
-    model, vectorizer, svd = load_model_and_vectorizer()
+    model, bert_vectorizer, minmax_scaler, nmf, scaler = load_stacking_model_and_transformers()
 
     user_input = st.text_area(
         "Enter a YouTube comment to analyze:", 
@@ -38,7 +55,7 @@ def home_screen():
     if st.button("Analyze Toxicity", type="primary"):
         if user_input:
             processed_text, _ = preprocess_text(user_input)
-            prediction, probability = predict_toxicity(processed_text, model, vectorizer, svd)
+            prediction, probability = predict_toxicity_stacking(processed_text, model, bert_vectorizer, minmax_scaler, nmf, scaler)
             
             if prediction == 1:
                 st.error(f"🚨 Toxic Comment Detected!")
@@ -54,7 +71,7 @@ def home_screen():
     with st.expander("About the Toxicity Detector"):
         st.write("""
         ### How It Works
-        - Uses a Complement Naive Bayes classifier
+        - Uses a Stacking Ensemble model with BERT embeddings
         - Trained on YouTube comment data
         - Analyzes text for potentially harmful content
         - Provides toxicity probability
